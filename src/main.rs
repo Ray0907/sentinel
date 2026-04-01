@@ -8,6 +8,7 @@ mod actor;
 mod actuator;
 mod budget;
 mod cdp;
+mod compare;
 mod daemon;
 mod diff;
 mod query;
@@ -102,6 +103,17 @@ enum Commands {
         /// Show summary only (default: full timeline)
         #[arg(short, long)]
         summary: bool,
+    },
+    /// Compare current page against a baseline recording (exit 1 on regression)
+    Compare {
+        /// Baseline recording JSON file
+        baseline: String,
+        /// URL to test (default: same URL as baseline)
+        #[arg(long)]
+        url: Option<String>,
+        /// Duration in seconds
+        #[arg(short, long, default_value_t = 10)]
+        duration: u64,
     },
     /// Performance budget check (CI integration — exit code 1 if exceeded)
     Budget {
@@ -236,7 +248,10 @@ async fn main() -> Result<()> {
     // Check if we need streaming mode (Watch or Record command)
     let needs_stream = matches!(
         cli.command,
-        Commands::Watch { .. } | Commands::Record { .. } | Commands::Budget { .. }
+        Commands::Watch { .. }
+            | Commands::Record { .. }
+            | Commands::Budget { .. }
+            | Commands::Compare { .. }
     );
     let (stream_tx, stream_rx) = if needs_stream {
         let (tx, rx) = tokio::sync::mpsc::channel::<actuator::StreamEvent>(4096);
@@ -323,6 +338,53 @@ async fn main() -> Result<()> {
         Commands::Snapshot => {
             cmd_tx.send(actuator::ActuatorCommand::Snapshot).await?;
             query::commands::observe(report_rx, 2).await?;
+        }
+        Commands::Compare {
+            baseline,
+            url,
+            duration,
+        } => {
+            // Load baseline
+            let baseline_rec = recording::Recording::load(&baseline)?;
+            let test_url = url.unwrap_or_else(|| baseline_rec.url.clone());
+
+            let mut rec = recording::Recording::new(&test_url);
+
+            // Navigate
+            cmd_tx
+                .send(actuator::ActuatorCommand::Navigate { url: test_url })
+                .await?;
+            let _report_rx = query::commands::observe_until_settled(report_rx).await?;
+
+            // Enable streaming
+            cmd_tx
+                .send(actuator::ActuatorCommand::EnableStreaming)
+                .await?;
+
+            // Collect events
+            if let Some(stream_rx) = stream_rx {
+                let deadline =
+                    tokio::time::Instant::now() + tokio::time::Duration::from_secs(duration);
+                let mut stream_rx = stream_rx;
+                loop {
+                    tokio::select! {
+                        Some(event) = stream_rx.recv() => {
+                            rec.add_event(event);
+                        }
+                        _ = tokio::time::sleep_until(deadline) => {
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Compare
+            let result = compare::compare(&baseline_rec.summary, &rec.summary);
+            let ok = compare::print_results(&result);
+
+            if !ok {
+                std::process::exit(1);
+            }
         }
         Commands::Budget {
             url,

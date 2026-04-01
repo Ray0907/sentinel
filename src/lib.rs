@@ -4,6 +4,7 @@ pub mod actor;
 pub mod actuator;
 pub mod budget;
 pub mod cdp;
+pub mod compare;
 pub mod daemon;
 pub mod diff;
 pub mod query;
