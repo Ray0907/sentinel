@@ -1,167 +1,175 @@
 # Sentinel
 
-Continuous-observation agent browser framework. Built in Rust.
-
-**5,180 lines | 54 unit tests | 11 commands | 0 warnings**
-
-## Problem
-
-Agent-browser frameworks operate in a **snapshot-act-snapshot** loop:
-
-```
-snapshot → get element refs → click → snapshot again → diff
-```
-
-Everything between snapshots is invisible: loading spinners, layout shifts, animation states, intermediate DOM mutations, network timing.
-
-## Solution
-
-Sentinel subscribes to **40+ CDP event streams** and builds a real-time model of the page. It captures **everything that happens** during and after an action.
-
-```
-action → continuous event stream → automatic stability detection → structured report
-```
-
-## Quick Start
+Web performance monitor for CI pipelines. One binary, one command, zero config.
 
 ```bash
-cargo build --release
-
-# Navigate and observe
-sentinel --chrome /path/to/chrome navigate "https://example.com"
-
-# Navigate + click + observe the full journey
-sentinel --chrome /path/to/chrome run \
-  --url "https://app.example.com" \
-  --click "#submit-btn" \
-  --duration 5
-
-# Watch in real-time (JSONL stream)
-sentinel --chrome /path/to/chrome watch "https://example.com" -d 30
-
-# Filter by event type
-sentinel --chrome /path/to/chrome watch "https://example.com" -f lifecycle
-sentinel --chrome /path/to/chrome watch "https://example.com" -f network
-sentinel --chrome /path/to/chrome watch "https://example.com" -f dom
-
-# Record session for offline replay
-sentinel --chrome /path/to/chrome record "https://example.com" -o session.json -d 10
-
-# Replay offline (no Chrome needed)
-sentinel replay session.json
-sentinel replay session.json --summary
-
-# Daemon mode (persistent Chrome session)
-sentinel --chrome /path/to/chrome daemon start
-sentinel send navigate --url "https://example.com"
-sentinel send click --selector "#button"
-sentinel send ping
-sentinel daemon stop
+sentinel budget "https://your-app.com" -b "CLS<0.1,TTI<3000,errors=0"
+# exit 0 = pass, exit 1 = fail
 ```
 
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `navigate <url>` | Navigate and produce ObservationReport |
-| `run --url <url> --click <sel>` | Multi-step interaction with reports |
-| `watch <url> [-f filter]` | Real-time JSONL event stream |
-| `record <url> [-o file]` | Record session to JSON for replay |
-| `replay <file> [--summary]` | Offline replay/analysis (no Chrome) |
-| `daemon start` | Start persistent background session |
-| `send <action>` | Send command to running daemon |
-| `daemon stop/status` | Manage daemon lifecycle |
-| `click/type/snapshot` | Single actions |
-
-## ObservationReport
-
-Every action produces a structured JSON report:
-
-```json
-{
-  "action": "Click { selector: \"#btn-async\" }",
-  "state": "FullySettled",
-  "time_to_stable_ms": 2599,
-  "dom_mutations": [
-    "removed node 77 from parent 76",
-    "inserted <#text> into node 76",
-    "inline style invalidated on node 75"
-  ],
-  "layout_shifts": [0.0177, 0.0177],
-  "network_requests": ["GET https://api.example.com/data"],
-  "errors": [],
-  "console_messages": ["[error] 404 Not Found"],
-  "visual_diff": {
-    "hash_distance": 52,
-    "pixel_mismatch_pct": 0.18,
-    "changed": true,
-    "changed_region_count": 1,
-    "changed_regions": [[0, 116, 752, 290]]
-  },
-  "action_error": null,
-  "network_errors": ["https://example.com/favicon.ico: HTTP 404"],
-  "total_events": 13
-}
-```
-
-## Watch Mode (JSONL Streaming)
+## Install
 
 ```bash
-sentinel watch "https://news.ycombinator.com" -d 10 -f lifecycle
+cargo install --path .
+```
+
+Requires Chrome or Chromium installed.
+
+## Usage
+
+### Performance Budget (CI)
+
+Add to your CI pipeline to catch performance regressions before deploy:
+
+```bash
+sentinel budget "https://your-app.com" \
+  --chrome /path/to/chrome \
+  -b "CLS<0.1,TTI<3000,errors=0,requests<50" \
+  -d 10
+```
+
+Output:
+```
+=== Performance Budget Check ===
+
+  PASS  errors=0                        actual: 0           budget: 0
+  PASS  requests<50                     actual: 7           budget: 50
+  PASS  cls<0.1                         actual: 0.0354      budget: 0.1000
+! FAIL  tti<3000                        actual: 6860        budget: 3000
+
+1 budget(s) exceeded.
+```
+
+Available metrics: `CLS`, `TTI`, `errors`, `requests`, `dom_mutations`, `layout_shifts`, `console_messages`, `animations`, `total_events`
+
+Operators: `<`, `<=`, `=`, `>`
+
+#### GitHub Actions
+
+```yaml
+jobs:
+  perf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo install --path .
+      - name: Performance budget
+        run: |
+          sentinel budget "https://your-staging-url.com" \
+            --chrome google-chrome \
+            -b "CLS<0.1,TTI<5000,errors=0" \
+            -d 10
+```
+
+### Watch Mode
+
+Stream page events in real-time as JSONL:
+
+```bash
+# All events
+sentinel watch "https://your-app.com" -d 30
+
+# Filter by category
+sentinel watch "https://your-app.com" -f lifecycle
+sentinel watch "https://your-app.com" -f network
+sentinel watch "https://your-app.com" -f dom
+sentinel watch "https://your-app.com" -f error
 ```
 
 ```json
-{"time_ms":163,"category":"lifecycle","detail":"commit"}
 {"time_ms":163,"category":"lifecycle","detail":"DOMContentLoaded"}
 {"time_ms":757,"category":"lifecycle","detail":"firstPaint"}
-{"time_ms":757,"category":"lifecycle","detail":"firstContentfulPaint"}
 {"time_ms":2365,"category":"lifecycle","detail":"firstMeaningfulPaint"}
-{"time_ms":2909,"category":"lifecycle","detail":"networkIdle"}
 {"time_ms":6860,"category":"lifecycle","detail":"InteractiveTime"}
 ```
 
-## Architecture
+Pipe to `jq`, `grep`, or your monitoring tool.
 
-```
-Sensor (40+ CDP events) → Page Actor (single owner) → Actuator (CDP commands)
-                                │
-                    ┌───────────┼───────────┐
-                    │           │           │
-                Timeline   Stability    Visual Diff
-                    │       Tracker      (screenshots)
-                    ▼
-            ObservationReport / StreamEvent / Recording
-```
-
-- **Sensor**: Subscribes to CDP domains, normalizes events, routes by session
-- **Page Actor**: Single tokio task owns all mutable state (zero races)
-- **Stability Tracker**: Dual-mode (200ms actionable / 1000ms settled) with hysteresis
-- **Visual Diff**: Perceptual hash + pixel diff + region detection
-- **DOM Tree**: Incremental updates via slotmap, DOMSnapshot reconciliation
-- **Multi-target**: OOPIF/iframe events with domain enablement + target provenance
-
-## Build & Test
+### Navigate + Interact
 
 ```bash
-cargo build --release   # ~7s
-cargo test              # 54 unit tests
-bash tests/integration.sh  # 15 integration tests (requires Chrome)
+# Navigate and get observation report
+sentinel navigate "https://your-app.com"
+
+# Navigate, click, observe the result
+sentinel run --url "https://your-app.com" --click "#submit-btn" --duration 5
 ```
 
-## Comparison
+Every action produces a JSON report with:
+- DOM mutations (what changed)
+- Layout shifts (CLS values)
+- Network requests (URLs + status codes)
+- JS errors and console messages
+- Visual diff (which screen region changed, by how much)
+- Time to stable (how long until the page settled)
 
-| | Snapshot-based | Sentinel |
-|---|---|---|
-| Observation | Point-in-time | Continuous event stream |
-| DOM model | Rebuilt each time | Incrementally updated |
-| Layout shifts | Not detected | CLS via PerformanceTimeline |
-| Visual changes | Screenshot pixel diff | Perceptual hash + region detection |
-| Timing | Fixed waits | Automatic stability detection |
-| Intermediate states | Invisible | Fully captured in timeline |
-| Network | Not tracked | Full request lifecycle |
-| Animations | Not tracked | Animation.* events |
-| Console/errors | Not tracked | Captured with timing |
-| Recording | Not available | Full session record + offline replay |
+### Record + Replay
+
+```bash
+# Record a full session
+sentinel record "https://your-app.com" -o session.json -d 10
+
+# Replay offline (no Chrome needed)
+sentinel replay session.json --summary
+sentinel replay session.json  # full timeline
+```
+
+```
+=== Sentinel Recording ===
+URL:        https://news.ycombinator.com
+Duration:   3850ms
+
+--- Event Summary ---
+Total events:      42
+DOM mutations:     2
+Network requests:  21
+Layout shifts:     0 (CLS: 0.0000)
+Errors:            0
+Time to Interactive: 3850ms
+```
+
+### Daemon Mode
+
+Keep Chrome open between commands:
+
+```bash
+sentinel daemon start
+sentinel send navigate --url "https://your-app.com"
+sentinel send click --selector "#button"
+sentinel daemon stop
+```
+
+## How It Works
+
+Sentinel opens a headless Chrome, connects via Chrome DevTools Protocol (CDP),
+and subscribes to 40+ event streams: DOM mutations, network requests, layout
+shifts, animations, console output, lifecycle events. Instead of taking
+snapshots, it continuously records everything that happens.
+
+When you perform an action (navigate, click), Sentinel automatically detects
+when the page has stabilized (no more DOM changes, network idle, animations
+finished) and produces a structured report.
+
+```
+Chrome ─── CDP WebSocket ──→ Sensor (event normalization)
+                                    │
+                              Page Actor (single-thread state owner)
+                                    │
+                         ┌──────────┼──────────┐
+                         │          │          │
+                     Timeline   Stability   Visual Diff
+                         │       Tracker
+                         ▼
+                  Report / Stream / Recording
+```
+
+## Build
+
+```bash
+cargo build --release   # single binary, ~10MB
+cargo test              # 58 unit tests
+```
 
 ## License
 
