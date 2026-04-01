@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Sentinel Test Page</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    #content { transition: all 0.3s; }
+    .button { padding: 10px 20px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; margin: 5px; }
+    .button:hover { background: #0056b3; }
+    #result { margin-top: 20px; padding: 15px; border: 1px solid #ddd; min-height: 50px; }
+    #loader { display: none; margin: 10px 0; }
+    .spinner { width: 30px; height: 30px; border: 3px solid #f3f3f3; border-top: 3px solid #007bff; border-radius: 50%; animation: spin 1s linear infinite; display: inline-block; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .shift-trigger { background: yellow; padding: 20px; margin: 10px 0; }
+  </style>
+</head>
+<body>
+  <h1>Sentinel Test Page</h1>
+  <p>This page tests continuous observation features.</p>
+
+  <div>
+    <button class="button" id="btn-simple" onclick="handleSimpleClick()">Simple Click</button>
+    <button class="button" id="btn-async" onclick="handleAsyncClick()">Async Click (1s delay)</button>
+    <button class="button" id="btn-shift" onclick="handleLayoutShift()">Trigger Layout Shift</button>
+    <button class="button" id="btn-error" onclick="handleErrorClick()">Trigger JS Error</button>
+    <button class="button" id="btn-network" onclick="handleNetworkClick()">Fetch API Call</button>
+  </div>
+
+  <div id="loader"><div class="spinner"></div> Loading...</div>
+  <div id="result">Click a button to see results here.</div>
+  <div id="late-content" style="display:none; background:#f0f0f0; padding:10px; margin-top:10px;"></div>
+
+  <script>
+    function handleSimpleClick() {
+      document.getElementById('result').textContent = 'Simple click handled at ' + new Date().toISOString();
+      document.getElementById('result').style.background = '#d4edda';
+    }
+
+    function handleAsyncClick() {
+      var loader = document.getElementById('loader');
+      var result = document.getElementById('result');
+      loader.style.display = 'block';
+      result.textContent = 'Loading...';
+      result.style.background = '#fff3cd';
+
+      setTimeout(function() {
+        loader.style.display = 'none';
+        result.textContent = 'Async operation completed at ' + new Date().toISOString();
+        result.style.background = '#d4edda';
+
+        // Trigger a late DOM insertion (textContent only, no innerHTML)
+        setTimeout(function() {
+          var late = document.getElementById('late-content');
+          late.style.display = 'block';
+          late.textContent = 'Late content inserted after async operation. This would be missed by a single snapshot.';
+        }, 500);
+      }, 1000);
+    }
+
+    function handleLayoutShift() {
+      var div = document.createElement('div');
+      div.className = 'shift-trigger';
+      div.textContent = 'This element was inserted ABOVE the buttons, causing layout shift!';
+      document.body.insertBefore(div, document.body.firstChild);
+    }
+
+    function handleErrorClick() {
+      document.getElementById('result').textContent = 'About to throw an error...';
+      setTimeout(function() {
+        throw new Error('Intentional test error from Sentinel test page');
+      }, 100);
+    }
+
+    function handleNetworkClick() {
+      document.getElementById('result').textContent = 'Fetching...';
+      fetch('https://jsonplaceholder.typicode.com/posts/1')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          document.getElementById('result').textContent = 'Fetched: ' + data.title;
+          document.getElementById('result').style.background = '#d4edda';
+        })
+        .catch(function(e) {
+          document.getElementById('result').textContent = 'Error: ' + e.message;
+          document.getElementById('result').style.background = '#f8d7da';
+        });
+    }
+  </script>
+</body>
+</html>
