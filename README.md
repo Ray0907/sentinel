@@ -48,6 +48,17 @@ Operators: `<`, `<=`, `=`, `>`
 
 #### GitHub Actions
 
+Use the [Sentinel Action](https://github.com/Ray0907/sentinel-action) — zero setup:
+
+```yaml
+- uses: Ray0907/sentinel-action@v1
+  with:
+    url: "https://your-staging-url.com"
+    budget: "CLS<0.1,TTI<5000,errors=0"
+```
+
+Or install from source:
+
 ```yaml
 jobs:
   perf:
@@ -55,13 +66,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo install --path .
-      - name: Performance budget
-        run: |
-          sentinel budget "https://your-staging-url.com" \
-            --chrome google-chrome \
-            -b "CLS<0.1,TTI<5000,errors=0" \
-            -d 10
+      - run: cargo install --git https://github.com/Ray0907/sentinel.git
+      - run: sentinel budget "https://your-app.com" --chrome google-chrome -b "CLS<0.1,errors=0" -d 10
 ```
 
 ### Watch Mode
