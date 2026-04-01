@@ -1,5 +1,7 @@
 # Sentinel
 
+[![CI](https://github.com/Ray0907/sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/Ray0907/sentinel/actions/workflows/ci.yml)
+
 Web performance monitor for CI pipelines. One binary, one command, zero config.
 
 ```bash
