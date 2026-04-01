@@ -220,7 +220,11 @@ mod tests {
     /// Helper: advance an Instant by a given duration.
     /// Because Instant::now() is monotonic and we can't construct arbitrary instants,
     /// we use sleep-free time manipulation by setting last-activity timestamps in the past.
-    fn make_tracker_with_quiet(actionable_ms: u64, settled_ms: u64, max_ms: u64) -> StabilityTracker {
+    fn make_tracker_with_quiet(
+        actionable_ms: u64,
+        settled_ms: u64,
+        max_ms: u64,
+    ) -> StabilityTracker {
         let mut t = StabilityTracker::new();
         t.actionable_quiet_ms = actionable_ms;
         t.fully_settled_ms = settled_ms;

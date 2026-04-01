@@ -46,7 +46,9 @@ fn perceptual_hash_distance(a: &DynamicImage, b: &DynamicImage) -> u32 {
     let hash_b = mean_hash(b);
 
     // Hamming distance
-    hash_a.iter().zip(hash_b.iter())
+    hash_a
+        .iter()
+        .zip(hash_b.iter())
         .map(|(a, b)| (a ^ b).count_ones())
         .sum()
 }
@@ -74,7 +76,10 @@ fn pixel_diff(
     after: &DynamicImage,
     color_threshold: u8,
 ) -> (f64, Vec<bool>) {
-    let (w, h) = (before.width().min(after.width()), before.height().min(after.height()));
+    let (w, h) = (
+        before.width().min(after.width()),
+        before.height().min(after.height()),
+    );
     let total = (w * h) as f64;
     let mut mismatch_count = 0u64;
     let mut mask = Vec::with_capacity((w * h) as usize);
@@ -193,7 +198,7 @@ pub fn decode_screenshot(base64_data: &str) -> Result<DynamicImage> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use image::{RgbaImage, DynamicImage};
+    use image::{DynamicImage, RgbaImage};
 
     /// Create a solid-color test image.
     fn solid_image(width: u32, height: u32, r: u8, g: u8, b: u8) -> DynamicImage {
@@ -202,7 +207,16 @@ mod tests {
     }
 
     /// Create a half-and-half test image (left half one color, right half another).
-    fn split_image(width: u32, height: u32, r1: u8, g1: u8, b1: u8, r2: u8, g2: u8, b2: u8) -> DynamicImage {
+    fn split_image(
+        width: u32,
+        height: u32,
+        r1: u8,
+        g1: u8,
+        b1: u8,
+        r2: u8,
+        g2: u8,
+        b2: u8,
+    ) -> DynamicImage {
         let half = width / 2;
         let img = RgbaImage::from_fn(width, height, |x, _y| {
             if x < half {
@@ -286,8 +300,14 @@ mod tests {
         // Both have internal contrast, so bits are set, and the patterns differ
         // because the threshold (mean) cuts differently.
         // At minimum, verify that non-solid images produce non-zero hashes.
-        assert_ne!(hash_a, [0u8; 32], "dark gradient hash should not be all zero");
-        assert_ne!(hash_b, [0u8; 32], "bright gradient hash should not be all zero");
+        assert_ne!(
+            hash_a, [0u8; 32],
+            "dark gradient hash should not be all zero"
+        );
+        assert_ne!(
+            hash_b, [0u8; 32],
+            "bright gradient hash should not be all zero"
+        );
     }
 
     #[test]

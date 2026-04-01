@@ -14,9 +14,16 @@ use crate::cdp::client::CdpClient;
 /// Commands the actor can execute.
 #[derive(Debug, Clone)]
 pub enum ActuatorCommand {
-    Navigate { url: String },
-    Click { selector: String },
-    Type { selector: String, text: String },
+    Navigate {
+        url: String,
+    },
+    Click {
+        selector: String,
+    },
+    Type {
+        selector: String,
+        text: String,
+    },
     Snapshot,
     /// Enable streaming mode: actor sends every event to the stream channel.
     EnableStreaming,

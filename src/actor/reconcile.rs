@@ -77,8 +77,16 @@ pub async fn reconcile_from_snapshot(cdp: &CdpClient, dom_tree: &mut LiveDomTree
     for i in 0..count {
         let name_idx = nodes.node_name[i];
         let value_idx = nodes.node_value[i];
-        let name_idx = if name_idx >= 0 { name_idx as usize } else { usize::MAX };
-        let value_idx = if value_idx >= 0 { value_idx as usize } else { usize::MAX };
+        let name_idx = if name_idx >= 0 {
+            name_idx as usize
+        } else {
+            usize::MAX
+        };
+        let value_idx = if value_idx >= 0 {
+            value_idx as usize
+        } else {
+            usize::MAX
+        };
 
         flat_nodes.push(DomNode {
             node_id: i as i64 + 1, // synthetic sequential IDs (1-based)

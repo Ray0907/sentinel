@@ -14,8 +14,8 @@ use tokio::sync::mpsc;
 
 use crate::actuator::{ActuatorCommand, ObservationReport, StreamEvent};
 use crate::cdp::client::CdpClient;
-use crate::diff::visual_diff;
 use crate::cdp::types::*;
+use crate::diff::visual_diff;
 use crate::sensor::{SensorEvent, TaggedSensorEvent};
 
 use dom_tree::LiveDomTree;
@@ -34,19 +34,53 @@ pub struct ObservationEvent {
 #[derive(Debug, Clone)]
 pub enum ObservationKind {
     DomMutation(String), // description of DOM change
-    LayoutShift { value: f64 },
-    NetworkRequest { url: String, method: String, target: Option<String> },
-    NetworkResponse { url: String, status: i32, target: Option<String> },
-    NetworkComplete { request_id: String, target: Option<String> },
-    NetworkError { url: String, error: String, target: Option<String> },
-    ConsoleMessage { level: String, text: String, target: Option<String> },
-    Error { text: String, target: Option<String> },
-    Navigation { url: String },
-    AnimationStarted { id: String },
-    AnimationEnded { id: String },
+    LayoutShift {
+        value: f64,
+    },
+    NetworkRequest {
+        url: String,
+        method: String,
+        target: Option<String>,
+    },
+    NetworkResponse {
+        url: String,
+        status: i32,
+        target: Option<String>,
+    },
+    NetworkComplete {
+        request_id: String,
+        target: Option<String>,
+    },
+    NetworkError {
+        url: String,
+        error: String,
+        target: Option<String>,
+    },
+    ConsoleMessage {
+        level: String,
+        text: String,
+        target: Option<String>,
+    },
+    Error {
+        text: String,
+        target: Option<String>,
+    },
+    Navigation {
+        url: String,
+    },
+    AnimationStarted {
+        id: String,
+    },
+    AnimationEnded {
+        id: String,
+    },
     FrameCapture,
-    Lifecycle { name: String },
-    AxUpdate { node_count: usize },
+    Lifecycle {
+        name: String,
+    },
+    AxUpdate {
+        node_count: usize,
+    },
 }
 
 /// The Page Actor — owns all mutable state for one page.
@@ -264,10 +298,7 @@ impl PageActor {
                 }
                 // Skip DOM events from child targets — don't apply to main DOM tree
                 _ => {
-                    tracing::trace!(
-                        session_id = sid,
-                        "Skipping child-target DOM/page event"
-                    );
+                    tracing::trace!(session_id = sid, "Skipping child-target DOM/page event");
                 }
             }
             return;
@@ -497,7 +528,11 @@ impl PageActor {
                 let url = self.network.get_url(&data.request_id).unwrap_or_default();
                 self.network.on_failed(&data.request_id, &error);
                 self.stability.on_network_complete(now);
-                self.record(ObservationKind::NetworkError { url, error, target: None });
+                self.record(ObservationKind::NetworkError {
+                    url,
+                    error,
+                    target: None,
+                });
             }
 
             SensorEvent::WebSocketCreated(data) => {
@@ -585,8 +620,7 @@ impl PageActor {
                 // Enable CDP domains on the child session so we receive its events
                 let sid = data.session_id.clone();
                 let target_type = data.target_info.target_type.clone();
-                self.child_targets
-                    .insert(data.session_id, data.target_info);
+                self.child_targets.insert(data.session_id, data.target_info);
 
                 // Only enable domains for page/iframe targets (not service workers etc.)
                 if target_type == "page" || target_type == "iframe" {
@@ -628,12 +662,22 @@ impl PageActor {
                 );
             }
         }
-        tracing::info!(session = session_id, "Child target domains enabled (Network, Runtime, Log)");
+        tracing::info!(
+            session = session_id,
+            "Child target domains enabled (Network, Runtime, Log)"
+        );
     }
 
     /// Capture a screenshot via CDP for visual diff.
     async fn capture_screenshot(&self) -> Option<image::DynamicImage> {
-        match self.cdp.call("Page.captureScreenshot", serde_json::json!({"format": "png"})).await {
+        match self
+            .cdp
+            .call(
+                "Page.captureScreenshot",
+                serde_json::json!({"format": "png"}),
+            )
+            .await
+        {
             Ok(result) => {
                 if let Some(data) = result["data"].as_str() {
                     visual_diff::decode_screenshot(data).ok()
@@ -701,7 +745,6 @@ impl PageActor {
         }
     }
 
-
     async fn check_stability(&mut self) {
         let state = self
             .stability
@@ -724,7 +767,9 @@ impl PageActor {
                             ObservationKind::NetworkError { url, error, .. } => {
                                 Some(format!("{url}: {error}"))
                             }
-                            ObservationKind::NetworkResponse { url, status, .. } if *status >= 400 => {
+                            ObservationKind::NetworkResponse { url, status, .. }
+                                if *status >= 400 =>
+                            {
                                 Some(format!("{url}: HTTP {status}"))
                             }
                             _ => None,
@@ -808,18 +853,32 @@ impl PageActor {
                 let (category, detail) = match &kind {
                     ObservationKind::DomMutation(s) => ("dom", s.clone()),
                     ObservationKind::LayoutShift { value } => ("layout", format!("CLS {value:.4}")),
-                    ObservationKind::NetworkRequest { url, method, .. } => ("network", format!("{method} {url}")),
-                    ObservationKind::NetworkResponse { url, status, .. } => ("network", format!("{status} {url}")),
-                    ObservationKind::NetworkComplete { request_id, .. } => ("network", format!("complete {request_id}")),
-                    ObservationKind::NetworkError { url, error, .. } => ("error", format!("{url}: {error}")),
-                    ObservationKind::ConsoleMessage { level, text, .. } => ("console", format!("[{level}] {text}")),
+                    ObservationKind::NetworkRequest { url, method, .. } => {
+                        ("network", format!("{method} {url}"))
+                    }
+                    ObservationKind::NetworkResponse { url, status, .. } => {
+                        ("network", format!("{status} {url}"))
+                    }
+                    ObservationKind::NetworkComplete { request_id, .. } => {
+                        ("network", format!("complete {request_id}"))
+                    }
+                    ObservationKind::NetworkError { url, error, .. } => {
+                        ("error", format!("{url}: {error}"))
+                    }
+                    ObservationKind::ConsoleMessage { level, text, .. } => {
+                        ("console", format!("[{level}] {text}"))
+                    }
                     ObservationKind::Error { text, .. } => ("error", text.clone()),
                     ObservationKind::Navigation { url } => ("navigation", url.clone()),
-                    ObservationKind::AnimationStarted { id } => ("animation", format!("started {id}")),
+                    ObservationKind::AnimationStarted { id } => {
+                        ("animation", format!("started {id}"))
+                    }
                     ObservationKind::AnimationEnded { id } => ("animation", format!("ended {id}")),
                     ObservationKind::FrameCapture => ("visual", "frame captured".into()),
                     ObservationKind::Lifecycle { name } => ("lifecycle", name.clone()),
-                    ObservationKind::AxUpdate { node_count } => ("accessibility", format!("{node_count} nodes updated")),
+                    ObservationKind::AxUpdate { node_count } => {
+                        ("accessibility", format!("{node_count} nodes updated"))
+                    }
                 };
                 let elapsed = self.stream_start.elapsed().as_millis() as u64;
                 let _ = tx.try_send(StreamEvent {

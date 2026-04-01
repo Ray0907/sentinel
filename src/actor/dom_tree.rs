@@ -420,10 +420,7 @@ mod tests {
     fn clear_resets_everything() {
         let mut tree = LiveDomTree::new();
         let mut root = make_document(1);
-        root.children = Some(vec![
-            make_element(2, "HTML"),
-            make_element(3, "HEAD"),
-        ]);
+        root.children = Some(vec![make_element(2, "HTML"), make_element(3, "HEAD")]);
         tree.set_root(root);
         assert_eq!(tree.node_count(), 3);
 
@@ -467,10 +464,7 @@ mod tests {
     fn remove_child() {
         let mut tree = LiveDomTree::new();
         let mut root = make_document(1);
-        root.children = Some(vec![
-            make_element(2, "DIV"),
-            make_element(3, "SPAN"),
-        ]);
+        root.children = Some(vec![make_element(2, "DIV"), make_element(3, "SPAN")]);
         tree.set_root(root);
         assert_eq!(tree.node_count(), 3);
 
@@ -486,10 +480,7 @@ mod tests {
     fn remove_child_with_subtree() {
         let mut tree = LiveDomTree::new();
         let mut div = make_element(2, "DIV");
-        div.children = Some(vec![
-            make_element(4, "P"),
-            make_text(5, "hello"),
-        ]);
+        div.children = Some(vec![make_element(4, "P"), make_text(5, "hello")]);
         let mut root = make_document(1);
         root.children = Some(vec![div, make_element(3, "SPAN")]);
         tree.set_root(root);
@@ -587,10 +578,7 @@ mod tests {
     fn set_children_replaces_existing() {
         let mut tree = LiveDomTree::new();
         let mut root = make_document(1);
-        root.children = Some(vec![
-            make_element(2, "OLD1"),
-            make_element(3, "OLD2"),
-        ]);
+        root.children = Some(vec![make_element(2, "OLD1"), make_element(3, "OLD2")]);
         tree.set_root(root);
         assert_eq!(tree.node_count(), 3);
 

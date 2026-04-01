@@ -120,7 +120,10 @@ impl Recording {
         println!("Total events:      {}", self.summary.total_events);
         println!("DOM mutations:     {}", self.summary.dom_mutations);
         println!("Network requests:  {}", self.summary.network_requests);
-        println!("Layout shifts:     {} (CLS: {:.4})", self.summary.layout_shifts, self.summary.total_cls);
+        println!(
+            "Layout shifts:     {} (CLS: {:.4})",
+            self.summary.layout_shifts, self.summary.total_cls
+        );
         println!("Errors:            {}", self.summary.errors);
         println!("Console messages:  {}", self.summary.console_messages);
         println!("Lifecycle events:  {}", self.summary.lifecycle_events);
@@ -131,7 +134,13 @@ impl Recording {
         println!();
         println!("--- Reports ({}) ---", self.reports.len());
         for (i, report) in self.reports.iter().enumerate() {
-            println!("  {}. {} → {} ({}ms)", i + 1, report.action, report.state, report.time_to_stable_ms);
+            println!(
+                "  {}. {} → {} ({}ms)",
+                i + 1,
+                report.action,
+                report.state,
+                report.time_to_stable_ms
+            );
         }
     }
 
@@ -142,8 +151,15 @@ impl Recording {
         println!("--- Full Timeline ---");
         for event in &self.events {
             let target = event.target.as_deref().unwrap_or("");
-            let target_str = if target.is_empty() { String::new() } else { format!(" [{}]", target) };
-            println!("{:>6}ms  {:>12}  {}{}", event.time_ms, event.category, event.detail, target_str);
+            let target_str = if target.is_empty() {
+                String::new()
+            } else {
+                format!(" [{}]", target)
+            };
+            println!(
+                "{:>6}ms  {:>12}  {}{}",
+                event.time_ms, event.category, event.detail, target_str
+            );
         }
     }
 }
@@ -152,6 +168,8 @@ impl Recording {
 fn chrono_now() -> String {
     // Use std::time for a basic timestamp
     let now = std::time::SystemTime::now();
-    let since_epoch = now.duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+    let since_epoch = now
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
     format!("{}s since epoch", since_epoch.as_secs())
 }

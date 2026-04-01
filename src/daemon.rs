@@ -109,9 +109,7 @@ pub async fn run_daemon(
             Ok((stream, _)) => {
                 let cmd_tx = cmd_tx.clone();
                 // Handle one command per connection
-                if let Err(e) =
-                    handle_client(stream, &cmd_tx, &mut report_rx).await
-                {
+                if let Err(e) = handle_client(stream, &cmd_tx, &mut report_rx).await {
                     tracing::warn!(error = %e, "Client handler error");
                 }
             }
@@ -139,8 +137,8 @@ async fn handle_client(
         return Ok(());
     }
 
-    let cmd: DaemonCommand = serde_json::from_str(line)
-        .map_err(|e| anyhow!("Invalid command JSON: {e}"))?;
+    let cmd: DaemonCommand =
+        serde_json::from_str(line).map_err(|e| anyhow!("Invalid command JSON: {e}"))?;
 
     tracing::info!(action = cmd.action, "Daemon received command");
 
@@ -153,12 +151,7 @@ async fn handle_client(
                 .map_err(|_| anyhow!("Actor channel closed"))?;
 
             // Wait for report
-            match tokio::time::timeout(
-                std::time::Duration::from_secs(15),
-                report_rx.recv(),
-            )
-            .await
-            {
+            match tokio::time::timeout(std::time::Duration::from_secs(15), report_rx.recv()).await {
                 Ok(Some(report)) => DaemonResponse::ok_with_report(report),
                 Ok(None) => DaemonResponse::err("Actor shut down"),
                 Err(_) => DaemonResponse::err("Timeout waiting for report"),
@@ -171,12 +164,7 @@ async fn handle_client(
                 .await
                 .map_err(|_| anyhow!("Actor channel closed"))?;
 
-            match tokio::time::timeout(
-                std::time::Duration::from_secs(15),
-                report_rx.recv(),
-            )
-            .await
-            {
+            match tokio::time::timeout(std::time::Duration::from_secs(15), report_rx.recv()).await {
                 Ok(Some(report)) => DaemonResponse::ok_with_report(report),
                 Ok(None) => DaemonResponse::err("Actor shut down"),
                 Err(_) => DaemonResponse::err("Timeout waiting for report"),
@@ -190,12 +178,7 @@ async fn handle_client(
                 .await
                 .map_err(|_| anyhow!("Actor channel closed"))?;
 
-            match tokio::time::timeout(
-                std::time::Duration::from_secs(15),
-                report_rx.recv(),
-            )
-            .await
-            {
+            match tokio::time::timeout(std::time::Duration::from_secs(15), report_rx.recv()).await {
                 Ok(Some(report)) => DaemonResponse::ok_with_report(report),
                 Ok(None) => DaemonResponse::err("Actor shut down"),
                 Err(_) => DaemonResponse::err("Timeout waiting for report"),
@@ -230,8 +213,9 @@ async fn handle_client(
 /// Send a command to a running daemon and print the response.
 pub async fn send_to_daemon(port: u16, cmd: DaemonCommand) -> Result<()> {
     let path = socket_path(port);
-    let stream = UnixStream::connect(&path).await
-        .map_err(|_| anyhow!("No daemon running on port {port}. Start one with: sentinel daemon start"))?;
+    let stream = UnixStream::connect(&path).await.map_err(|_| {
+        anyhow!("No daemon running on port {port}. Start one with: sentinel daemon start")
+    })?;
 
     let (reader, mut writer) = stream.into_split();
 

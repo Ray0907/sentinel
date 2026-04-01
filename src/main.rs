@@ -146,33 +146,34 @@ async fn main() -> Result<()> {
 
     // Handle daemon and send commands separately (don't launch Chrome)
     match &cli.command {
-        Commands::Daemon { action } => {
-            match action {
-                DaemonAction::Start => {
-                    return start_daemon(&cli).await;
-                }
-                DaemonAction::Stop => {
-                    let cmd = daemon::DaemonCommand {
-                        action: "shutdown".to_string(),
-                        url: None,
-                        selector: None,
-                        text: None,
-                        duration: None,
-                        filter: None,
-                    };
-                    return daemon::send_to_daemon(cli.port, cmd).await;
-                }
-                DaemonAction::Status => {
-                    if daemon::is_running(cli.port).await {
-                        println!("Daemon is running on port {}", cli.port);
-                    } else {
-                        println!("No daemon running on port {}", cli.port);
-                    }
-                    return Ok(());
-                }
+        Commands::Daemon { action } => match action {
+            DaemonAction::Start => {
+                return start_daemon(&cli).await;
             }
-        }
-        Commands::Replay { ref file, ref summary } => {
+            DaemonAction::Stop => {
+                let cmd = daemon::DaemonCommand {
+                    action: "shutdown".to_string(),
+                    url: None,
+                    selector: None,
+                    text: None,
+                    duration: None,
+                    filter: None,
+                };
+                return daemon::send_to_daemon(cli.port, cmd).await;
+            }
+            DaemonAction::Status => {
+                if daemon::is_running(cli.port).await {
+                    println!("Daemon is running on port {}", cli.port);
+                } else {
+                    println!("No daemon running on port {}", cli.port);
+                }
+                return Ok(());
+            }
+        },
+        Commands::Replay {
+            ref file,
+            ref summary,
+        } => {
             let rec = recording::Recording::load(file)?;
             if *summary {
                 rec.print_summary();
@@ -221,7 +222,10 @@ async fn main() -> Result<()> {
     tracing::info!("Sensor ready");
 
     // Check if we need streaming mode (Watch or Record command)
-    let needs_stream = matches!(cli.command, Commands::Watch { .. } | Commands::Record { .. });
+    let needs_stream = matches!(
+        cli.command,
+        Commands::Watch { .. } | Commands::Record { .. }
+    );
     let (stream_tx, stream_rx) = if needs_stream {
         let (tx, rx) = tokio::sync::mpsc::channel::<actuator::StreamEvent>(4096);
         (Some(tx), Some(rx))
@@ -337,8 +341,8 @@ async fn main() -> Result<()> {
 
             // Record stream events for the duration
             if let Some(stream_rx) = stream_rx {
-                let deadline = tokio::time::Instant::now()
-                    + tokio::time::Duration::from_secs(duration);
+                let deadline =
+                    tokio::time::Instant::now() + tokio::time::Duration::from_secs(duration);
                 let mut stream_rx = stream_rx;
 
                 loop {
@@ -414,7 +418,10 @@ async fn start_daemon(cli: &Cli) -> Result<()> {
         let _ = actor::run(actor_client, sensor_rx, cmd_rx, report_tx).await;
     });
 
-    tracing::info!(port = cli.port, "Daemon started. Use 'sentinel send' to send commands.");
+    tracing::info!(
+        port = cli.port,
+        "Daemon started. Use 'sentinel send' to send commands."
+    );
 
     // Run the daemon socket server (blocks until shutdown)
     daemon::run_daemon(cli.port, cmd_tx, report_rx).await?;
