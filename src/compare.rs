@@ -143,8 +143,8 @@ pub fn print_results(result: &CompareResult) -> bool {
     println!("=== Baseline Comparison ===");
     println!();
     println!(
-        "{:<20} {:>12} {:>12} {:>10}  {}",
-        "Metric", "Baseline", "Current", "Change", "Status"
+        "{:<20} {:>12} {:>12} {:>10}  Status",
+        "Metric", "Baseline", "Current", "Change"
     );
     println!("{}", "-".repeat(72));
 
