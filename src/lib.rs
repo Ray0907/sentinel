@@ -2,6 +2,7 @@
 
 pub mod actor;
 pub mod actuator;
+pub mod budget;
 pub mod cdp;
 pub mod daemon;
 pub mod diff;

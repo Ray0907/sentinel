@@ -6,6 +6,7 @@ use tracing_subscriber::{fmt, EnvFilter};
 
 mod actor;
 mod actuator;
+mod budget;
 mod cdp;
 mod daemon;
 mod diff;
@@ -101,6 +102,17 @@ enum Commands {
         /// Show summary only (default: full timeline)
         #[arg(short, long)]
         summary: bool,
+    },
+    /// Performance budget check (CI integration — exit code 1 if exceeded)
+    Budget {
+        /// URL to test
+        url: String,
+        /// Budget rules: "CLS<0.1,TTI<3000,requests<50,errors=0"
+        #[arg(short, long)]
+        budget: String,
+        /// Duration in seconds to observe
+        #[arg(short, long, default_value_t = 15)]
+        duration: u64,
     },
     /// Daemon mode: persistent browser session
     Daemon {
@@ -224,7 +236,7 @@ async fn main() -> Result<()> {
     // Check if we need streaming mode (Watch or Record command)
     let needs_stream = matches!(
         cli.command,
-        Commands::Watch { .. } | Commands::Record { .. }
+        Commands::Watch { .. } | Commands::Record { .. } | Commands::Budget { .. }
     );
     let (stream_tx, stream_rx) = if needs_stream {
         let (tx, rx) = tokio::sync::mpsc::channel::<actuator::StreamEvent>(4096);
@@ -311,6 +323,55 @@ async fn main() -> Result<()> {
         Commands::Snapshot => {
             cmd_tx.send(actuator::ActuatorCommand::Snapshot).await?;
             query::commands::observe(report_rx, 2).await?;
+        }
+        Commands::Budget {
+            url,
+            budget: budget_str,
+            duration,
+        } => {
+            let rules = budget::parse_budget(&budget_str);
+            if rules.is_empty() {
+                eprintln!("No valid budget rules parsed from: {budget_str}");
+                std::process::exit(1);
+            }
+
+            let mut rec = recording::Recording::new(&url);
+
+            // Navigate
+            cmd_tx
+                .send(actuator::ActuatorCommand::Navigate { url })
+                .await?;
+            let _report_rx = query::commands::observe_until_settled(report_rx).await?;
+
+            // Enable streaming to collect metrics
+            cmd_tx
+                .send(actuator::ActuatorCommand::EnableStreaming)
+                .await?;
+
+            // Collect events for duration
+            if let Some(stream_rx) = stream_rx {
+                let deadline =
+                    tokio::time::Instant::now() + tokio::time::Duration::from_secs(duration);
+                let mut stream_rx = stream_rx;
+                loop {
+                    tokio::select! {
+                        Some(event) = stream_rx.recv() => {
+                            rec.add_event(event);
+                        }
+                        _ = tokio::time::sleep_until(deadline) => {
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Check budgets
+            let results = budget::check_budget(&rules, &rec.summary);
+            let all_passed = budget::print_results(&results);
+
+            if !all_passed {
+                std::process::exit(1);
+            }
         }
         Commands::Record {
             url,
